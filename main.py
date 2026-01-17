@@ -36,7 +36,7 @@ from typing import final
 HOST_SERVER_IPADDR: str = '127.0.0.1'; # IPv4 loopback address
 # HOST_SERVER_IPADDR: str = '0.0.0.0';
 PORT: int = 8080;
-DOC_ROOT: str = './public';
+DOC_ROOT: str = './catgirl';
 BUFFER_SIZE: int = 4096;
 
 serverRunningStatus: bool= True; # why is the T captial ew
