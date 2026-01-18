@@ -70,11 +70,10 @@ def DNS_LOOKUP(domainName: str) -> Union[str, None]:
 
 ### --- USER AGENT STUFF --- ### 
 
-    def PARSE_USER_AGENT(userAgent: str) -> Dict[str, str]: # Dict[KT, VT] 
-
-        originalUnknownInfo = {
-            'browser': 'unknwon'
-        }
+def PARSE_USER_AGENT(userAgent: str) -> Dict[str, str]: # Dict[KT, VT] 
+    originalUnknownInfo = {
+        'browser': 'unknwon'
+    }
 
 def interruptSignalHandler(sigRecieved, frame) -> str:
     # SIGINT / SIGSTP
