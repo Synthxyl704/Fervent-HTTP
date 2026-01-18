@@ -71,9 +71,20 @@ def DNS_LOOKUP(domainName: str) -> Union[str, None]:
 ### --- USER AGENT STUFF --- ### 
 
 def PARSE_USER_AGENT(userAgent: str) -> Dict[str, str]: # Dict[KT, VT] 
-    originalUnknownInfo = {
-        'browser': 'unknwon'
+    browserDatabase = [
+        ("firefox", "Firefox", "Firefox/"),
+        ("edg",     "Edge",    "Edg/"),
+        ("chrome",  "Chrome",  "Chrome/"),
+        ("safari",  "Safari",  None)
+    ];
+
+    defaultBrowserInfo = {
+        "browser": "unknown",
+        "version": "unknown",
+        "os": "unknown",
+        "device:" "unknown"
     }
+
 
 def interruptSignalHandler(sigRecieved, frame) -> str:
     # SIGINT / SIGSTP
