@@ -1,2 +1,6 @@
-# Fervent-HTTP
-A small largely linux compliant multithreaded fraction of HTTP/1.1 prototype programmed in Python.
+# X-TCP: NOT a TCP!
+<hr>
+No actual README put out yet, you can git clone the repo though:
+```
+git clone github.com/Synthxyl704/xTCP
+```
