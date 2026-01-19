@@ -242,7 +242,7 @@ def PRINT_HOST_FILE_SETUP() -> Optional[None]:
     print("[::1]      |  localhost6");
     print("-"*80);
     print("Linux/Mac: /etc/hosts");
-    print("Windows: C:\\Windows\\System32\\drivers\\etc\\hosts");
+    print("Windows: C:\\Windows\\System32\\drivers\\etc\\hosts"); # had AI write this part, i did put it my own but idk if its gonna work
     print("-"*80 + "\n");
 
 def interruptSignalHandler(sigRecieved, frame) -> str:
@@ -375,7 +375,7 @@ def READ_FULL_HTTP_REQUEST(socketObj: socket.socket, headersList, initialBody: b
 
     return (b''.join(HTTP_bodyParts));
 
-def BUILD_HTTP_RESPONSE(statusCode, contentType, contentLength, encoding = 'id', connection = 'keep-alive'):
+def BUILD_HTTP_RESPONSE(statusCode, contentType, contentLength, encoding = 'identity', connection = 'keep-alive'):
     statusMessages = {
         200: 'OK',
         404: 'Not found',
@@ -394,18 +394,16 @@ def BUILD_HTTP_RESPONSE(statusCode, contentType, contentLength, encoding = 'id',
         f"Date: {formatdate(usegmt=True)}"
     ];
 
-    # if (encoding != 'identity'):
-    #    headersList.append(f"Content-Encoding: {encoding}");
+    if (encoding != 'identity'):
+        headersList.append(f"Content-Encoding: {encoding}");
 
     headersList.append('\r\n');
-
     return ('\r\n'.join(headersList).encode('utf-8'));
 
 def HANDLE_CLIENT_CONNECTION(connection: socket.socket, clientAddress, isTLS = False, isIPv6 = False):
     print(f"[+INFO]: Client connection instantiated: {clientAddress}");
     # connection.settimeout(5);
 
-    startTime = time.time(); # idk what type annotation returns here
     protocolUtilized: str = "HTTPS" if isTLS else "HTTP";
     IPvX: str = "IPv6" if isIPv6 else "IPv4";
 
@@ -419,6 +417,7 @@ def HANDLE_CLIENT_CONNECTION(connection: socket.socket, clientAddress, isTLS = F
 
     try:
         while serverRunningStatus:
+            startTime = time.time(); # idk what type annotation returns here
             TXN_start = startTime;
 
             try:
@@ -517,9 +516,22 @@ def HANDLE_CLIENT_CONNECTION(connection: socket.socket, clientAddress, isTLS = F
         print(f"[!ERROR]: there was some problem handling the connection - {connexHandlingERR}");
 
     finally:
+        try:
+            connection.shutdown(socket.SHUT_RDWR);
+        except:
+            pass;
+
+        # connection.close();
+
         connection.close();
-        totalTime = (time.time() - TXN_start) * 1000; # TXN_start is possibly unbound?
+        # totalTime = (time.time() - TXN_start) * 1000; # TXN_start is possibly unbound?
+        if 'TXN_start' not in locals():
+             totalTime = 0
+        else:
+             totalTime = (time.time() - TXN_start) * 1000
+
         print(f"[+INFO]: connection closed {clientAddress} | Total time elapsed: {totalTime}");
+
 
 def CREATE_TLS_CONTEXT() -> Optional[ssl.SSLContext]:
     if not os.path.exists(CERTIFICATION_FILE) or not os.path.exists(KEY_FILE):
@@ -532,9 +544,9 @@ def CREATE_TLS_CONTEXT() -> Optional[ssl.SSLContext]:
         TLS_context.load_cert_chain(certfile=CERTIFICATION_FILE, keyfile=KEY_FILE);
         TLS_context.minimum_version = ssl.TLSVersion.TLSv1_2;
         TLS_context.set_ciphers('ECDHE+AESGCM:!aNULL:!MD5');
-        TLS_context.set_alpn_protocols(['h2', 'http/1.1']);
+        TLS_context.set_alpn_protocols(['http/1.1']);
      
-        print(f"[+TLS]: Context created with ALPN (h2, http/1.1)");
+        print(f"[+TLS]: Context created with ALPN (http/1.1)");
         print(f"[+TLS]: Context created successfully.");
         return (TLS_context);
     
@@ -542,89 +554,49 @@ def CREATE_TLS_CONTEXT() -> Optional[ssl.SSLContext]:
         print(f"[!ERROR]: TLS setup failed - {e}");
         return (None);
 
-def START_LOOPBACK_SERVER(isUsingIPv6 = False, isUsingTLS = False): 
-    if isUsingIPv6:
-        serverEndpoint = socket.socket(socket.AF_INET6, socket.SOCK_STREAM);
-        clientAddress = (HOST_SERVER_IPv6, TLS_PORT if isUsingTLS else PORT);
-        IPvX_VERSION = "IPv6";
-    # https://docs.python.org/3/library/socket.html
+def START_LOOPBACK_SERVER(clientIP, port, isUsingTLS = False):
+    family = socket.AF_INET6 if ':' in clientIP else socket.AF_INET;
+    server = socket.socket(family, socket.SOCK_STREAM);
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
+    server.bind((clientIP, port));
+    server.listen(50);
 
-    else:
-        serverEndpoint: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
-        clientAddress = (HOST_SERVER_IPv4, TLS_PORT if isUsingTLS else PORT);
-        IPvX_VERSION = "IPv4";
+    TLS_CONTEXT = CREATE_TLS_CONTEXT() if isUsingTLS else None;
+    protocolUtilized = "https" if isUsingTLS else "http";
 
-    serverEndpoint.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
-    # iso.bind((HOST_SERVER_IPv4, PORT));
+    print(f"[SERVER] {protocolUtilized}://{clientIP}:{port}");
 
-    SSL_CONTEXT = None;
-    if isUsingTLS:
-        SSL_CONTEXT = CREATE_TLS_CONTEXT();
-        
-        if not SSL_CONTEXT:
-            print(f"[!ERROR]: could not instantiate TLS | ceritification error?");
-            return;
+    while serverRunningStatus:
+        try:
+            connection, address = server.accept();
 
-    try:
-        serverEndpoint.bind((clientAddress));
-        serverEndpoint.listen(5);
+            if isUsingTLS:
+                connection = TLS_CONTEXT.wrap_socket(connection, server_side=True);
 
-        protocolUsed = "https" if isUsingTLS else "http";
-        port = TLS_PORT if isUsingTLS else PORT;
+            threading.Thread(
+                target = HANDLE_CLIENT_CONNECTION,
+                args = (connection, address, isUsingTLS, family == socket.AF_INET6),
+                daemon = True
+            ).start();
 
-        print(f"[~SERVER]: listening on {protocolUsed}://{clientAddress[0]}:{clientAddress[1]}");
-        print(f"[~SERVER]: input SIGINT for proper closure");
+        except OSError:
+            break;
 
-        signal.signal(signal.SIGINT, interruptSignalHandler);
-
-        while serverRunningStatus:
-                try:
-                    # x = serverEndpoint.accept();
-                    clientConnection, clientAddress = serverEndpoint.accept(); # server ssocket will accept incoming connxs 
-
-                    if isUsingTLS:
-                        if SSL_CONTEXT:
-                            try:
-                                clientConnection = SSL_CONTEXT.wrap_socket(clientConnection, server_side=True);
-                                print(f"[~SERVER]: TLS handshake successful with {clientAddress}");
-                            except Exception as ssl_error:
-                                print(f"[!TLS]: TLS handshake failed - {ssl_error}");
-                                clientConnection.close();
-                                continue;
-                        else:
-                            print("[!TLS]: No context found, closing connection.");
-                            clientConnection.close();
-                            continue;
-
-                    # every demultiplex thread will execute HANDLE_CLIENT_CONNECTION(clientConnection, clientAddress); 
-                    clientThread = threading.Thread(
-                        target = HANDLE_CLIENT_CONNECTION, 
-                        args = (clientConnection, clientAddress), # args mandatorily requisite a tuple
-                        daemon = True
-                    );
-
-                    # https://docs.python.org/3/library/threading.html
-                    # network requests made
-                    # only one thread executes py bytecode at a time
-                    # no new process recreation
-                    # clientThread = threading.Thread()
-                    
-                    clientThread.start();
-
-                except OSError: # should return network/socket errs
-                    break; 
-    except Exception as serverSideERR:
-        print(f"fatal server-side error - {serverSideERR}");
-    finally:
-        serverEndpoint.close();
-        print(f"[~SERVER]: server stopped");
+    server.close();
 
 if __name__ == "__main__":
-    START_LOOPBACK_SERVER(isUsingTLS=True);
-    t2 = threading.Thread(
-        target=START_LOOPBACK_SERVER, 
-        args=(False, True), 
-        daemon=True
-    )
+    listOfThreads = [
+        threading.Thread(target = START_LOOPBACK_SERVER, args = ('127.0.0.1', 8080, False)),
+        threading.Thread(target = START_LOOPBACK_SERVER, args = ('::1', 8080, False)),
+        threading.Thread(target = START_LOOPBACK_SERVER, args = ('127.0.0.1', 8443, True)),
+        threading.Thread(target = START_LOOPBACK_SERVER, args = ('::1', 8443, True))
+    ];
 
-    t2.start()
+    for aThread in listOfThreads:
+        aThread.daemon = True;
+        aThread.start();
+
+    signal.signal(signal.SIGINT, interruptSignalHandler)
+    while serverRunningStatus:
+        time.sleep(1)
+
