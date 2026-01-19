@@ -11,7 +11,7 @@ import json
 
 from datetime import datetime
 from types import NoneType
-from typing import Optional, Tuple, Dict, Union
+from typing import Optional, Dict, Union
 
 # neovim auto-imports stuff as i use it - i love it
 
@@ -70,15 +70,26 @@ def DNS_LOOKUP(domainName: str) -> Union[str, None]:
 
 ### --- USER AGENT STUFF --- ### 
 
+browserDatabase = [ # make global for one time allocation
+    ("firefox", "Firefox", "Firefox/"),
+    ("edg",     "Edge",    "Edg/"),
+    ("chrome",  "Chrome",  "Chrome/"),
+    ("safari",  "Safari",  None) # none is a bad idea but will fix l8r
+]; 
+
+OS_Database = [
+    ("Windows 10/11", ["windows nt 10"]),
+    ("Windows 8.1", ["windows nt 6.3"]),
+    ("Windows", ["windows"]),
+    ("macOS", ["mac os x", "macos"]),
+    ("Ubuntu", ["ubuntu"], "Probably a desktop?"),
+    ("Linux", ["linux", "Probably a desktop?"]),
+    ("Android", ["android"], "Mobile"),
+    ("iOS", ["iphone"], "Mobile"),
+    ("iOS", ["ipad"], "Tablet")
+];
+
 def PARSE_USER_AGENT(userAgent: str) -> Dict[str, str]: # Dict[KT, VT] 
-
-    browserDatabase = [
-        ("firefox", "Firefox", "Firefox/"),
-        ("edg",     "Edge",    "Edg/"),
-        ("chrome",  "Chrome",  "Chrome/"),
-        ("safari",  "Safari",  None)
-    ];
-
     defaultBrowserInfo = {
         "browser": "unknown",
         "version": "unknown",
@@ -89,7 +100,38 @@ def PARSE_USER_AGENT(userAgent: str) -> Dict[str, str]: # Dict[KT, VT]
     if userAgent == None or not userAgent: # are these the same thing?
         return (defaultBrowserInfo);
 
-    userAgentInfoLowered = userAgent.lower();
+    # now this is not-so-good implementation 
+    # use: pip install ua-parser user-agents
+    # and then get manually, ive implemented my own for didactic purposes here
+
+    # userAgentInfoLowered = userAgent.lower();
+    # UA = ["mozilla/5.0 (linux; EndeavourOS) Firefox/146.0.1 ..."];
+
+    for browserName, browserVersionToken, identifyingSubstring in browserDatabase:
+        if identifyingSubstring in userAgent:
+            defaultBrowserInfo["browser"] = browserName;
+
+            if browserVersionToken in userAgent:
+                # defaultBrowserInfo["version"] = browserVersionToken;
+                browserVersionToken["version"] = (
+                    userAgent.split(browserVersionToken, 1)[1].split()[0] # AI wrote the logic for this, i dont know how this works
+                );
+
+            break; 
+            # this can be done with regexes as well!?
+
+    for rule in OS_Database:
+        OS_name, markers, *userDevice = rule;
+        
+        if any(x in userAgent for x in markers):
+            defaultBrowserInfo["os"] = OS_name;
+
+            if userDevice or userDevice != None:
+                defaultBrowserInfo["device"] = userDevice[0];
+
+            break;
+
+    return (defaultBrowserInfo);
 
 def interruptSignalHandler(sigRecieved, frame) -> str:
     # SIGINT / SIGSTP
