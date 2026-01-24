@@ -128,6 +128,7 @@ def DNS_LOOKUP(domainName: str) -> Union[str, None]:
         # "catgirl.local": "127.0.0.1",
         # "myserver.local": "127.0.0.1",
         "localhost6": "::1",
+        "isodns": "isodns.aris" 
         # "catgirl6.local": "::1"
     };
 
@@ -242,7 +243,8 @@ def PRINT_HOST_FILE_SETUP() -> Optional[None]:
     print("[::1]      |  localhost6");
     print("-"*80);
     print("Linux/Mac: /etc/hosts");
-    print("Windows: C:\\Windows\\System32\\drivers\\etc\\hosts"); # had AI write this part, i did put it my own but idk if its gonna work
+    print("Windows: C:\\Windows\\System32\\drivers\\etc\\hosts"); # had AI write this part 
+                                                                  # i did put it my own but idk if its gonna work
     print("-"*80 + "\n");
 
 def interruptSignalHandler(sigRecieved, frame) -> str:
@@ -251,6 +253,9 @@ def interruptSignalHandler(sigRecieved, frame) -> str:
 
     if serverRunningStatus:
         print(f"\n\n[-/+INFO]: SERVER SHUTDOWN SIGNAL RECIEVED!\n\n");
+        
+        RESOLVED_IP_ADDR = DNS_LOOKUP("localhost"); 
+
         serverRunningStatus = False;
 
     TARGET_PORTS = [PORT, TLS_PORT];
@@ -258,19 +263,19 @@ def interruptSignalHandler(sigRecieved, frame) -> str:
     for port in TARGET_PORTS:
         try:
             dummyEndpoint_v4 = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
-            dummyEndpoint_v4.settimeout(0.5); # Don't hang if the server is already dead
+            dummyEndpoint_v4.settimeout(0.1); # Reduced timeout for minimal latency
             dummyEndpoint_v4.connect(('127.0.0.1', port)); 
             dummyEndpoint_v4.close();
-        except Exception as IPv4_EXCEPTION:
-            print(f"[+INFO] - IPv4 dummy exception - {IPv4_EXCEPTION}");
+        except Exception:
+            pass;
 
         try:
             dummyEndpoint_v6 = socket.socket(socket.AF_INET6, socket.SOCK_STREAM);
-            dummyEndpoint_v6.settimeout(0.5);
+            dummyEndpoint_v6.settimeout(0.1);
             dummyEndpoint_v6.connect(('::1', port)); 
             dummyEndpoint_v6.close();
-        except Exception as IPv6_EXCEPTION:
-            print(f"[+INFO] - IPv6 dummy exception - {IPv6_EXCEPTION}");
+        except Exception:
+            pass;
 
 def getMIMEtype(filePath: str):
     mimeType, encodeType = mimetypes.guess_type(filePath);
@@ -589,14 +594,15 @@ if __name__ == "__main__":
         threading.Thread(target = START_LOOPBACK_SERVER, args = ('127.0.0.1', 8080, False)),
         threading.Thread(target = START_LOOPBACK_SERVER, args = ('::1', 8080, False)),
         threading.Thread(target = START_LOOPBACK_SERVER, args = ('127.0.0.1', 8443, True)),
-        threading.Thread(target = START_LOOPBACK_SERVER, args = ('::1', 8443, True))
+        threading.Thread(target = START_LOOPBACK_SERVER, args = ('::1', 8443, True)),
+        threading.Thread(target = START_LOOPBACK_SERVER, args = ('0.0.0.0', 8443, True))
     ];
 
     for aThread in listOfThreads:
         aThread.daemon = True;
         aThread.start();
 
-    signal.signal(signal.SIGINT, interruptSignalHandler)
+    signal.signal(signal.SIGINT, interruptSignalHandler);
     while serverRunningStatus:
-        time.sleep(1)
+        time.sleep(1);
 
